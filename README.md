@@ -6,7 +6,8 @@
 2. Install dependencies
 3. Run
 
-######################################################################
+---
+
 CHECK BEFORE INSTALLATION
 
 ## Pre-Requirements
