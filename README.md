@@ -55,6 +55,7 @@ live.py
 ui.py
 
 ## Batch process
+Process all frames in a folder with live.py script. This can be helpful when processing video frames or large image datasets.
 python batch_process.py
 
 ## App key bindings
