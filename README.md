@@ -19,8 +19,9 @@ Install Python from [python.org](https://www.python.org/downloads/)
 ## Linux users also need to install
 Install tkinter: `sudo apt-get install python3-tk`
 
-######################################################################
-VIRTUAL ENVIRONMENT
+---
+
+SETTING UP VIRTUAL ENVIRONMENT (OPTIONAL)
 
 # Recommended: use virtual environment Mac/Linux
 python -m venv live_venv
@@ -29,19 +30,22 @@ source live_venv/bin/activate  # Linux/Mac
 python -m venv live_venv
 live_venv\Scripts\activate
 
-######################################################################
+---
+
 INSTALLATION
 
 # Install
 python src/install.py
 
-######################################################################
+---
+
 RUN
 
 # Run
 python run.py
 
-######################################################################
+---
+
 OTHER STUFF
 
 # Open and edit these files
@@ -53,9 +57,13 @@ python batch_process.py
 
 # App key bindings
 q = quit
-r = save frame and script
+r = save frame and script to 'output' folder
+c = change camera
+m = manual/automatic history
+h = add frames to history (in manual mode only)
 
-######################################################################
+---
+
 DOCS
 
 # Generate documentation
