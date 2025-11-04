@@ -10,6 +10,7 @@ os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.qpa.*=false' # Disable on Win
 import cv2
 cv2.setLogLevel(0) # 0 = silent, 3 = errors only
 
+import math
 import time
 import sys
 from pathlib import Path
@@ -93,6 +94,12 @@ class FrameHistory:
         if not self.frames:
             return None
         
+        if index>self.max_size-1 or index == None or not isinstance(index, int):
+            index = self.max_size
+
+        if index>len(self.frames)-1:
+            index=len(self.frames)-1
+
         # Positive index: count back from newest (reverse order)
         if index >= 0:
             if index >= len(self.frames):
@@ -130,7 +137,9 @@ observer = Observer()
 observer.schedule(event_handler, path='.', recursive=False)
 observer.start()
 
+current_camera_index = 0
 cameras = list_cameras()
+max_cameras = len(cameras) if cameras else 1
 
 # GUI
 # Create single instance
@@ -279,14 +288,44 @@ while True:
     
     hist_mode_str = "AUTO" if history.auto_mode else "MANUAL"
     # Update title with accurate metrics
-    cv2.setWindowTitle('Live', f'VIRTA LIVE CODER | Cam | {fps:.1f} FPS | Process: {process_time:.1f}ms | History: {len(history)}/100 [{hist_mode_str}]')
+    cv2.setWindowTitle('Live', f'VIRTA LIVE CODER | Cam({current_camera_index}) | {fps:.1f} FPS | Process: {process_time:.1f}ms | History: {len(history)}/100 [{hist_mode_str}]')
     
     # Handle keyboard input
     #key = cv2.waitKey(1) & 0xFF
     key = cv2.waitKey(30) & 0xFF  # Changed from 1 to 30ms
-    
+    # 'c' key - cycle to next camera
+    if key == ord('c'):
+        # Only try if we have multiple cameras
+        if max_cameras <= 1:
+            print("Only one camera available")
+        else:
+            print(f"Attempting to switch from camera {current_camera_index}...")
+            
+            # Try next camera WITHOUT closing current first
+            next_camera = (current_camera_index + 1) % max_cameras
+            
+            new_cap = cv2.VideoCapture(next_camera)
+            new_cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            new_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            new_cap.set(cv2.CAP_PROP_FPS, 30)
+            time.sleep(0.2)
+            
+            # Test if it works
+            ret, test_frame = new_cap.read()
+            
+            if ret and new_cap.isOpened():
+                # Success - NOW we can close the old one
+                cap.release()
+                cap = new_cap
+                current_camera_index = next_camera
+                history.frames.clear()
+                print(f"✓ Switched to camera {current_camera_index}")
+            else:
+                # Failed - just close the failed attempt, keep original
+                new_cap.release()
+                print(f"✗ Camera {next_camera} not available, staying on camera {current_camera_index}")
     # 'h' key - add frame to history (manual mode) or does nothing in auto mode
-    if key == ord('h'):
+    elif key == ord('h'):
         if not history.auto_mode:
             history.add(frame)
             print(f"Frame added to history manually ({len(history)}/100)")
@@ -300,6 +339,7 @@ while True:
 
     elif key == ord('r'):
         if current_frame is not None:
+            output_dir.mkdir(exist_ok=True)  # Ensure folder exists
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             img_path = output_dir / f"{timestamp}.png"
             cv2.imwrite(str(img_path), current_frame)
