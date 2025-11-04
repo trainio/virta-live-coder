@@ -1,5 +1,5 @@
 
-# Live Coder by Tuomo Rainio 2025
+# VIRTA Live Coder
 
 ## Installation
 1. Create virtual environment and activate it (optional)
