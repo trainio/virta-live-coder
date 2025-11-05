@@ -1,8 +1,6 @@
 """
 Live Coder by Tuomo Rainio 2025
-
 """
-
 # run.py
 #!/usr/bin/env python3
 """Launch Live Editor"""
@@ -27,10 +25,10 @@ def open_in_editor(filepath):
     
     for editor_cmd in editors:
         try:
+            # Remove shell=True and pass command as list
             subprocess.Popen(editor_cmd, 
                            stdout=subprocess.DEVNULL, 
-                           stderr=subprocess.DEVNULL,
-                           shell=True)
+                           stderr=subprocess.DEVNULL)
             print(f"Opened {filepath} in editor")
             return True
         except (FileNotFoundError, OSError):
@@ -45,8 +43,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 # Run main.py as module
 if __name__ == '__main__':
     # Open live.py in editor
-    #open_in_editor('live.py')
-    #open_in_editor('ui.py')
+    open_in_editor('ui.py')
+    open_in_editor('live.py')
     
     # Launch the live coding environment
     import src.main

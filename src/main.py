@@ -168,7 +168,7 @@ fps_history = []
 current_frame = None
 
 # Create output folder if it doesn't exist
-output_dir = Path("output_images")
+output_dir = Path("output")
 output_dir.mkdir(exist_ok=True)
 
 # Timing variables
@@ -233,12 +233,12 @@ while True:
 
     # Process frame
     try:
-        frame = live.process(frame, gui, history)
+        frame = live.processing(frame, gui, history)
         #remove frame = live.process(frame,gui)
         current_frame = frame.copy()
     except Exception as e:
         cv2.putText(frame, str(e)[:50], (10, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
 
 
@@ -253,7 +253,7 @@ while True:
                     startup_logo = cv2.imread(str(logo_path))
                     if startup_logo is not None:
                         h, w = frame.shape[:2]
-                        startup_logo = cv2.resize(startup_logo, (w, h))
+                        startup_logo = cv2.resize(startup_logo, (1920, 1080))
                 startup_logo_loaded = True
             
             # Show logo or text
