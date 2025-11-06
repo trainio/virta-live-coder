@@ -159,7 +159,7 @@ cv2.resizeWindow('Live', 1920, 1080)  # Or any size you want
 cv2.moveWindow('Live', 200, 0)  # x=400, y=100
 
 # SELECT CAMERA INPUT
-cap = cv2.VideoCapture(2)
+cap = cv2.VideoCapture(0)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 cap.set(cv2.CAP_PROP_FPS, 30)

@@ -13,8 +13,8 @@ def setup(gui):
     
     # Define controls here
     # YOU CAN EDIT THE UI HERE!
-    gui.slider("Blur", 1, 51, 15, step=2) \
-       .slider("Brightness", -100, 100, 0) \
+    gui.slider("History", 1, 51, 15, step=2) \
+       .slider("Threshold", 1, 100, 50) \
        .slider("Contrast", 0.5, 3.0, 1.0, step=0.1) \
        .button("Flip Horizontal", False) \
-       .button("Invert Colors", False)
+       .button("Invert", False)

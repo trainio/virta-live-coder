@@ -7,6 +7,7 @@ from .process import process
 from .draw import draw
 from .generate import generate
 from .blend import blend
+from .analyze import analyze
 
 # Backwards compatibility - map old function names to new class methods
 
@@ -93,10 +94,13 @@ blend_history_echo = blend.history_echo
 # Legacy name
 frame_diff = blend.difference
 
+# Analyze
+analyze_digram_visualize = analyze.diagram_visualize
+
 # Export everything
 __all__ = [
     # Classes
-    'process', 'draw', 'generate', 'blend',
+    'process', 'draw', 'generate', 'blend','analyze',
     
     # Process functions (backwards compatibility)
     'grayscale', 'invert', 'brighten', 'contrast',
@@ -127,4 +131,7 @@ __all__ = [
     'blend_history_diff_sum', 'blend_history_trail',
     'blend_history_onion_skin', 'blend_history_echo',
     'frame_diff',
+
+    # Analyze functions
+    'analyze_digram_visualize'
 ]
