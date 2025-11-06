@@ -14,6 +14,7 @@ import math
 import time
 import sys
 from pathlib import Path
+import platform
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -158,8 +159,14 @@ cv2.namedWindow('Live', cv2.WINDOW_NORMAL | cv2.WINDOW_GUI_NORMAL)
 cv2.resizeWindow('Live', 1920, 1080)  # Or any size you want
 cv2.moveWindow('Live', 200, 0)  # x=400, y=100
 
+CAMERA_BACKEND = None
+if platform.system() == 'Windows':
+    CAMERA_BACKEND = cv2.CAP_DSHOW
+else:  # Linux
+    CAMERA_BACKEND = cv2.CAP_ANY 
+
 # SELECT CAMERA INPUT
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(0,CAMERA_BACKEND)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 cap.set(cv2.CAP_PROP_FPS, 30)
