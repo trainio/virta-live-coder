@@ -9,7 +9,7 @@
 ## Installation
 
 
-## Pre-Requirements
+### Pre-Requirements
 Python 3.8 or higher
 
 ## Install pre-requirements
