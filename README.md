@@ -1,13 +1,13 @@
 
-# Live Coder by Tuomo Rainio 2025
+# Live Coder
+
+
+
+
+
 
 ## Installation
-1. Create virtual environment and activate it (optional)
-2. Install dependencies
-3. Run
 
-######################################################################
-CHECK BEFORE INSTALLATION
 
 ## Pre-Requirements
 Python 3.8 or higher
@@ -17,6 +17,14 @@ Install Python from [python.org](https://www.python.org/downloads/)
 
 ## Linux users also need to install
 Install tkinter: `sudo apt-get install python3-tk`
+
+
+#Install
+1. Create virtual environment and activate it (optional)
+2. Install dependencies
+3. Run
+
+
 
 ######################################################################
 VIRTUAL ENVIRONMENT
