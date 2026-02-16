@@ -11,6 +11,7 @@ import numpy as np
 import tkinter as tk
 from tkinter import ttk, filedialog
 import threading
+import time
 import queue
 from pathlib import Path
 import sys
@@ -164,6 +165,7 @@ class EffectsGUI:
         self.history = []
         self.max_history = 100
         self.last_processed_frame = None
+        self.last_frame_time = time.time()  # For FPS calculation
         
         # GUI components
         self.setup_gui()
@@ -846,6 +848,12 @@ class EffectsGUI:
             
             self.preview_label.imgtk = imgtk
             self.preview_label.configure(image=imgtk)
+            
+            # Calculate and display FPS in window title
+            now = time.time()
+            fps = 1.0 / max(now - self.last_frame_time, 0.001)
+            self.last_frame_time = now
+            self.root.title(f"Live Effects GUI - {fps:.1f} FPS")
             
         except queue.Empty:
             pass
