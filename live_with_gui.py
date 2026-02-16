@@ -3,7 +3,7 @@ Live Effects GUI - Interactive effect toggler
 Toggle effects on/off and adjust parameters without editing code
 
 Usage:
-    python effects_gui.py [--camera 0] [--image path/to/image.jpg]
+    python live_with_gui.py [--camera 0] [--image path/to/image.jpg]
 """
 
 import cv2
@@ -290,7 +290,8 @@ class EffectsGUI:
         search_frame.pack(fill=tk.X, pady=(0, 5))
         tk.Label(search_frame, text="Search:").pack(side=tk.LEFT, padx=(0, 5))
         self.search_var = tk.StringVar()
-        self.search_var.trace('w', lambda *args: self.filter_available_effects())
+        # old self.search_var.trace('w', lambda *args: self.filter_available_effects())
+        self.search_var.trace_add('write', lambda *args: self.filter_available_effects())
         search_entry = tk.Entry(search_frame, textvariable=self.search_var)
         search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
@@ -420,7 +421,7 @@ class EffectsGUI:
             
             # Effect name
             name_label = tk.Label(item_frame, text=effect.name, 
-                                 bg='white', font=("Arial", 10),
+                                 bg='white', fg='black', font=("Arial", 10),
                                  anchor=tk.W)
             name_label.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
             
@@ -486,7 +487,7 @@ class EffectsGUI:
             # Effect name and category
             name_text = f"{effect.name} ({effect.category})"
             name_label = tk.Label(top_row, text=name_text,
-                                 bg='white', font=("Arial", 10, "bold"))
+                                 bg='white', fg='black', font=("Arial", 10, "bold"))
             name_label.pack(side=tk.LEFT, padx=5)
             
             # Control buttons frame
@@ -548,13 +549,13 @@ class EffectsGUI:
                     param_frame.pack(fill=tk.X, padx=10, pady=3)
                     
                     tk.Label(param_frame, text=f"{param.name}:", 
-                            bg='#f9f9f9', font=("Arial", 9)).pack(side=tk.LEFT)
+                            bg='#f9f9f9', fg='black', font=("Arial", 9)).pack(side=tk.LEFT)
                     
                     if param.param_type in (int, float):
                         # Value label
                         value_label = tk.Label(param_frame, 
                                              text=f"{param.value:.2f}" if param.param_type == float else f"{param.value}",
-                                             bg='#f9f9f9', font=("Arial", 9), width=8)
+                                             bg='#f9f9f9', fg='black', font=("Arial", 9), width=8)
                         value_label.pack(side=tk.RIGHT, padx=5)
                         
                         # Slider

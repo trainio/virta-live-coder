@@ -3,50 +3,58 @@
 
 
 
-
-
-
 ## Installation
 
-
 ### Pre-Requirements
-Python 3.8 or higher
 
-## Install pre-requirements
-Install Python from [python.org](https://www.python.org/downloads/)
+- Python 3.8 or higher — Install from [python.org](https://www.python.org/downloads/)
+- **Mac/Linux only:** tkinter (must be installed **before** creating a virtual environment)
 
-## Linux users also need to install
-Install tkinter: `sudo apt-get install python3-tk`
+  Mac:
+  ```bash
+  brew install python-tk@3.XX
+  ```
+  *(replace 3.XX with your Python version, e.g. 3.12, 3.13)*
+
+  Linux:
+  ```bash
+  sudo apt-get install python3-tk
+  ```
+
+### Setup
+
+1. Create and activate a virtual environment (optional, but recommended):
+
+   Linux/Mac:
+   ```bash
+   python3 -m venv virta_venv
+   source virta_venv/bin/activate
+   ```
+
+   Windows:
+   ```bash
+   python -m venv virta_venv
+   virta_venv\Scripts\activate
+   ```
+
+2. Install dependencies:
+   ```bash
+   python src/install.py
+   ```
+
+3. Run:
+   ```bash
+   
+   python run.py (live coding with editor)
+   ```
 
 
-#Install
-1. Create virtual environment and activate it (optional)
-2. Install dependencies
-3. Run
+# Remove virtual environment
+deactivate
+rm -rf virta_venv
 
 
 
-######################################################################
-VIRTUAL ENVIRONMENT
-
-# Recommended: use virtual environment Mac/Linux
-python -m venv live_venv
-source live_venv/bin/activate  # Linux/Mac
-# or Windows:
-python -m venv live_venv
-live_venv\Scripts\activate
-
-######################################################################
-INSTALLATION
-
-# Install
-python src/install.py
-
-######################################################################
-RUN
-
-# Run
-python run.py
 
 ######################################################################
 OTHER STUFF

@@ -8,7 +8,8 @@ os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.qpa.*=false' # Disable on Win
 # For Linux, rebuild opencv-python with GTK support or:
 
 import cv2
-cv2.setLogLevel(0) # 0 = silent, 3 = errors only
+#cv2.setLogLevel(0) # 0 = silent, 3 = errors only
+cv2.utils.logging.setLogLevel(0)
 
 import math
 import time
