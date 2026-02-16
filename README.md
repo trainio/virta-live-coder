@@ -44,8 +44,8 @@
 
 3. Run:
    ```bash
-   
-   python run.py (live coding with editor)
+   python live_with_gui.py 
+   python run.py
    ```
 
 
@@ -59,11 +59,11 @@ rm -rf virta_venv
 ######################################################################
 OTHER STUFF
 
-# Open and edit these files
+# Open and edit these files when running without gui (python run.py)
 live.py
 ui.py
 
-# Batch process
+# Batch process files without live view
 python batch_process.py
 
 # App key bindings
@@ -73,12 +73,29 @@ r = save frame and script
 ######################################################################
 DOCS
 
-# Generate documentation
+# Generate documentation (html)
 python src/generate_docs.py
 
-# Read docs
+# Read docs (html)
 open docs/index.html in browser
-
 
 # Generate stubs (for autocomplete)
 python src/generate_stubs.py
+
+######################################################################
+ADD NEW FUNCTIONS
+
+1. Choose the module by purpose from scr/graphics/
+
+2. Add your function as a static method on the module's class.
+Accept frame as the first parameter (a BGRA numpy array, dtype=uint8)
+Return a BGRA numpy array of the same dtype
+
+3. Register the backwards-compatible alias in __init__.py
+In src/graphics/__init__.py, add two things:
+a) The alias (under the appropriate comment section):
+b) The export (in the __all__ list):
+
+4. Regenerate the type stubs
+The .pyi files are auto-generated. Run:
+python src/generate_stubs.py src/graphics

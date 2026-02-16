@@ -278,7 +278,7 @@ class EffectsGUI:
         main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         # Left section - Available effects
-        left_panel = tk.Frame(main_container, width=300)
+        left_panel = tk.Frame(main_container, width=250)
         left_panel.pack(side=tk.LEFT, fill=tk.BOTH, padx=(0, 5))
         
         left_title = tk.Label(left_panel, text="Available Effects", 
@@ -433,10 +433,10 @@ class EffectsGUI:
                 return add
             
             add_btn = tk.Button(item_frame, text="→", font=("Arial", 12, "bold"),
-                              command=make_add_callback(effect),
-                              bg='#4CAF50', fg='white', width=3,
-                              relief=tk.RAISED)
-            add_btn.pack(side=tk.RIGHT, padx=2, pady=2)
+                            command=make_add_callback(effect),
+                            bg='#4CAF50', fg='black', width=3,
+                            relief=tk.RAISED, pady=0)
+            add_btn.pack(side=tk.RIGHT, padx=2, pady=1)
     
     def filter_available_effects(self):
         """Filter available effects by search term"""
@@ -494,34 +494,75 @@ class EffectsGUI:
             controls_frame = tk.Frame(top_row, bg='white')
             controls_frame.pack(side=tk.RIGHT)
             
-            # Up button
-            def make_move_up(idx):
-                def move_up():
-                    if idx > 0:
-                        self.effects[global_idx], self.effects[self.get_global_idx(enabled_effects, idx - 1)] = \
-                            self.effects[self.get_global_idx(enabled_effects, idx - 1)], self.effects[global_idx]
-                        self.build_pipeline_effects()
-                return move_up
+            # # Up button
+            # def make_move_up(idx):
+            #     def move_up():
+            #         if idx > 0:
+            #             self.effects[global_idx], self.effects[self.get_global_idx(enabled_effects, idx - 1)] = \
+            #                 self.effects[self.get_global_idx(enabled_effects, idx - 1)], self.effects[global_idx]
+            #             self.build_pipeline_effects()
+            #     return move_up
             
+            # up_btn = tk.Button(controls_frame, text="▲", font=("Arial", 8),
+            #                  command=make_move_up(pipeline_idx),
+            #                  width=2, bg='#d0d0d0')
+            # up_btn.pack(side=tk.LEFT, padx=1)
+            # if pipeline_idx == 0:
+            #     up_btn.config(state=tk.DISABLED)
+            
+            # # Down button
+            # def make_move_down(idx):
+            #     def move_down():
+            #         if idx < len(enabled_effects) - 1:
+            #             self.effects[global_idx], self.effects[self.get_global_idx(enabled_effects, idx + 1)] = \
+            #                 self.effects[self.get_global_idx(enabled_effects, idx + 1)], self.effects[global_idx]
+            #             self.build_pipeline_effects()
+            #     return move_down
+            
+            # down_btn = tk.Button(controls_frame, text="▼", font=("Arial", 8),
+            #                    command=make_move_down(pipeline_idx),
+            #                    width=2, bg='#d0d0d0')
+            # Move up - pass global_idx and enabled_effects as parameters
+            def make_move_up(g_idx):
+                def move_up():
+                    # Remove from current position, insert one position earlier
+                    eff = self.effects.pop(g_idx)
+                    # Find the previous enabled effect's position
+                    prev_idx = g_idx - 1
+                    while prev_idx >= 0 and not self.effects[prev_idx].enabled:
+                        prev_idx -= 1
+                    if prev_idx >= 0:
+                        self.effects.insert(prev_idx, eff)
+                    else:
+                        self.effects.insert(0, eff)
+                    self.build_pipeline_effects()
+                return move_up
+
             up_btn = tk.Button(controls_frame, text="▲", font=("Arial", 8),
-                             command=make_move_up(pipeline_idx),
-                             width=2, bg='#d0d0d0')
+                            command=make_move_up(global_idx),
+                            width=2, bg='#d0d0d0')
             up_btn.pack(side=tk.LEFT, padx=1)
             if pipeline_idx == 0:
                 up_btn.config(state=tk.DISABLED)
-            
-            # Down button
-            def make_move_down(idx):
+
+            def make_move_down(g_idx):
                 def move_down():
-                    if idx < len(enabled_effects) - 1:
-                        self.effects[global_idx], self.effects[self.get_global_idx(enabled_effects, idx + 1)] = \
-                            self.effects[self.get_global_idx(enabled_effects, idx + 1)], self.effects[global_idx]
-                        self.build_pipeline_effects()
+                    eff = self.effects.pop(g_idx)
+                    # Find the next enabled effect's position
+                    next_idx = g_idx
+                    while next_idx < len(self.effects) and not self.effects[next_idx].enabled:
+                        next_idx += 1
+                    if next_idx < len(self.effects):
+                        self.effects.insert(next_idx + 1, eff)
+                    else:
+                        self.effects.append(eff)
+                    self.build_pipeline_effects()
                 return move_down
-            
+
             down_btn = tk.Button(controls_frame, text="▼", font=("Arial", 8),
-                               command=make_move_down(pipeline_idx),
-                               width=2, bg='#d0d0d0')
+                            command=make_move_down(global_idx),
+                            width=2, bg='#d0d0d0')            
+
             down_btn.pack(side=tk.LEFT, padx=1)
             if pipeline_idx == len(enabled_effects) - 1:
                 down_btn.config(state=tk.DISABLED)

@@ -61,10 +61,6 @@ class StubGenerator:
             if isinstance(node.value, str):
                 return f'"{node.value}"'
             return str(node.value)
-        elif isinstance(node, ast.Num):
-            return str(node.n)
-        elif isinstance(node, ast.Str):
-            return f'"{node.s}"'
         elif isinstance(node, ast.Tuple):
             elements = [self.ast_to_string(e) for e in node.elts]
             return f"({', '.join(elements)})"
@@ -92,13 +88,6 @@ class StubGenerator:
                 return "str"
             elif val is None:
                 return "Optional[Any]"
-        elif isinstance(node, ast.Num):
-            if isinstance(node.n, int):
-                return "int"
-            elif isinstance(node.n, float):
-                return "float"
-        elif isinstance(node, ast.Str):
-            return "str"
         elif isinstance(node, ast.Tuple):
             # Check if it's a color tuple
             if len(node.elts) == 3:

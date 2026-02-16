@@ -310,21 +310,47 @@ class process:
             result[:, :, i] = (result[:, :, i] * vignette_mask).astype(np.uint8)
         return result
     
+    # @staticmethod
+    # def datamosh(frame, block_size=8, corruption=0.3):
+    #     """Compression artifact effect"""
+    #     original = frame.copy()
+    #     result = frame.copy()
+    #     h, w = result.shape[:2]
+    #     for y in range(0, h, block_size):
+    #         for x in range(0, w, block_size):
+    #             if np.random.random() < corruption:
+    #                 shift_y = np.random.randint(-block_size, block_size)
+    #                 shift_x = np.random.randint(-block_size, block_size)
+    #                 src_y = max(0, min(h - block_size, y + shift_y))
+    #                 src_x = max(0, min(w - block_size, x + shift_x))
+    #                 result[y:y+block_size, x:x+block_size] = \
+    #                     original[src_y:src_y+block_size, src_x:src_x+block_size]
+    #     return result
+
     @staticmethod
     def datamosh(frame, block_size=8, corruption=0.3):
         """Compression artifact effect"""
         original = frame.copy()
         result = frame.copy()
         h, w = result.shape[:2]
+
         for y in range(0, h, block_size):
             for x in range(0, w, block_size):
                 if np.random.random() < corruption:
                     shift_y = np.random.randint(-block_size, block_size)
                     shift_x = np.random.randint(-block_size, block_size)
-                    src_y = max(0, min(h - block_size, y + shift_y))
-                    src_x = max(0, min(w - block_size, x + shift_x))
-                    result[y:y+block_size, x:x+block_size] = \
-                        original[src_y:src_y+block_size, src_x:src_x+block_size]
+
+                    # Clamp source origin
+                    src_y = np.clip(y + shift_y, 0, h - 1)
+                    src_x = np.clip(x + shift_x, 0, w - 1)
+
+                    # Common size that fits both src and dst within bounds
+                    ch = min(block_size, h - y, h - src_y)
+                    cw = min(block_size, w - x, w - src_x)
+
+                    # Both slices guaranteed to be (ch, cw, ...)
+                    result[y:y+ch, x:x+cw] = original[src_y:src_y+ch, src_x:src_x+cw]
+
         return result
     
     @staticmethod
@@ -373,3 +399,16 @@ class process:
         result[edges > 0] = frame[edges > 0]
         return result
 
+    @staticmethod
+    def solarize(frame, threshold=128):
+        """Solarize effect - invert pixels above threshold"""
+        # Work on BGR channels only, preserve alpha
+        bgr = frame[:, :, :3]
+        alpha = frame[:, :, 3:]
+
+        # Invert pixels where value exceeds threshold
+        mask = bgr > threshold
+        result = bgr.copy()
+        result[mask] = 255 - result[mask]
+
+        return np.concatenate([result, alpha], axis=2)

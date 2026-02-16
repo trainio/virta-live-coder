@@ -54,6 +54,7 @@ add_noise_gaussian = process.add_noise_gaussian
 invert_channels = process.invert_channels
 swap_channels = process.swap_channels
 edge_masked = process.edge_masked
+solarize = process.solarize
 
 # Draw functions
 draw_rectangle = draw.rectangle
@@ -116,6 +117,7 @@ __all__ = [
     'scanlines', 'chromatic_aberration', 'vignette', 'datamosh',
     'add_noise_uniform', 'add_noise_gaussian',
     'invert_channels', 'swap_channels', 'edge_masked',
+    'solarize',
     
     # Draw functions (backwards compatibility)
     'draw_rectangle', 'draw_circle', 'draw_line', 'draw_crosshair',
