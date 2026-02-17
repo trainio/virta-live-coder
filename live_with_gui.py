@@ -160,20 +160,31 @@ class EffectsGUI:
         self.camera_id = camera_id
         self.image_path = image_path
         self.cap = None
-        self.capture_thread = None # Keep track of the thread
+        self.capture_thread = None
+        self.capture_running = True  # Controls capture thread only
         self.frame_queue = queue.Queue(maxsize=2)
-        self.running = True
+        self.running = True  # Controls overall app lifecycle
         
         # Effects catalog (templates) and active pipeline (cloned instances)
         self.effect_templates = self.build_effects_list()
         self.pipeline = []  # Independent effect instances
         self.history = []
         self.max_history = 100
-        self.last_processed_frame = None
-        self.last_frame_time = time.time()  # For FPS calculation
+        
+        # Thread-safe display state: processing thread writes, GUI reads
+        self.display_lock = threading.Lock()
+        self.last_processed_frame = None  # Latest processed frame (BGRA)
+        self.display_frame_new = False    # Flag: new frame available for display
+        self.processing_fps = 0.0         # Current processing FPS
+        self.last_process_duration = 0.0  # How long last frame took (seconds)
+        self.last_frame_delivered = time.time()  # When last frame was ready
         
         # GUI components
         self.setup_gui()
+        
+        # Start processing thread (runs independently of GUI refresh)
+        self.processing_thread = threading.Thread(target=self._processing_loop, daemon=True)
+        self.processing_thread.start()
         
         # Start video thread
         if image_path:
@@ -401,6 +412,20 @@ class EffectsGUI:
         tk.Button(preview_title_frame, text="Camera", 
                  command=self.start_camera_feed).pack(side=tk.RIGHT)
         
+        # Processing status bar (packed before preview so it stays visible at bottom)
+        self.progress_frame = tk.Frame(right_panel)
+        self.progress_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(2, 0))
+        self.progress_label = tk.Label(self.progress_frame, text="",
+                                       font=("Arial", 9), fg='#666', width=30,
+                                       anchor=tk.W)
+        self.progress_label.pack(side=tk.LEFT, padx=5)
+        self.progress_bar = ttk.Progressbar(self.progress_frame, mode='determinate',
+                                            maximum=100, length=200)
+        self.progress_bar.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        self.progress_pct = tk.Label(self.progress_frame, text="",
+                                     font=("Arial", 9), fg='#666', width=5)
+        self.progress_pct.pack(side=tk.RIGHT, padx=5)
+        
         self.preview_label = tk.Label(right_panel, bg='black')
         self.preview_label.pack(fill=tk.BOTH, expand=True)
         
@@ -625,7 +650,7 @@ class EffectsGUI:
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         
         def capture_loop():
-            while self.running:
+            while self.capture_running:
                 if not self.cap:
                     break
                 ret, frame = self.cap.read()
@@ -660,7 +685,7 @@ class EffectsGUI:
             
             # Put image in queue repeatedly
             def image_loop():
-                while self.running:
+                while self.capture_running:
                     if self.frame_queue.full():
                         try:
                             self.frame_queue.get_nowait()
@@ -685,8 +710,8 @@ class EffectsGUI:
         if filepath:
             self.image_path = filepath
             
-            # Stop current thread
-            self.running = False
+            # Stop current capture thread (not processing thread)
+            self.capture_running = False
             if self.capture_thread and self.capture_thread.is_alive():
                 self.capture_thread.join()
             
@@ -695,7 +720,7 @@ class EffectsGUI:
                 self.cap.release()
                 self.cap = None
             
-            self.running = True
+            self.capture_running = True
             
             # Clear queue
             while not self.frame_queue.empty():
@@ -710,12 +735,12 @@ class EffectsGUI:
         """Switch the video source back to the webcam."""
         print("Switching to camera feed...")
         
-        # 1. Stop the current capture thread
-        self.running = False
+        # 1. Stop the current capture thread (not processing thread)
+        self.capture_running = False
         if self.capture_thread and self.capture_thread.is_alive():
             self.capture_thread.join()
         
-        # 2. Clean up resources (camera is released by join, just in case)
+        # 2. Clean up resources
         if self.cap:
             self.cap.release()
             self.cap = None
@@ -731,12 +756,16 @@ class EffectsGUI:
         self.image_path = None 
         
         # 5. Start the camera
-        self.running = True
+        self.capture_running = True
         self.start_camera()
 
     def save_image(self):
         """Save the current processed frame to the 'output' folder"""
-        if self.last_processed_frame is None:
+        # Grab frame under lock for thread safety
+        with self.display_lock:
+            frame_to_save = self.last_processed_frame.copy() if self.last_processed_frame is not None else None
+        
+        if frame_to_save is None:
             print("No frame processed yet to save.")
             return
         
@@ -746,66 +775,122 @@ class EffectsGUI:
             output_dir.mkdir(parents=True, exist_ok=True)
             
             # Generate filename
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3] # Milliseconds
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
             filename = f"saved_frame_{timestamp}.png"
             save_path = output_dir / filename
             
             # Save the frame
-            cv2.imwrite(str(save_path), self.last_processed_frame)
+            cv2.imwrite(str(save_path), frame_to_save)
             
             print(f"✓ Frame saved to: {save_path}")
         
         except Exception as e:
             print(f"Error saving frame: {e}")
     
-    def update_preview(self):
-        """Update video preview with effects applied"""
-        if not self.running:
-            return
+    def _processing_loop(self):
+        """Background thread: takes raw frames, applies pipeline, stores result.
+        Runs at whatever speed the effects allow -- decoupled from GUI refresh."""
+        last_process_time = time.time()
         
-        try:
-            # Get frame from queue
-            frame = self.frame_queue.get_nowait()
+        while self.running:
+            try:
+                # Wait for a raw frame (with timeout so we can check self.running)
+                frame = self.frame_queue.get(timeout=0.1)
+            except queue.Empty:
+                continue
             
-            # Store unprocessed input frame in history (for blend effects)
+            # Store unprocessed input in history (for blend effects)
             self.history.append(frame.copy())
             if len(self.history) > self.max_history:
                 self.history.pop(0)
             
-            # Apply effects pipeline (blends will reference unprocessed history)
+            # Apply effects pipeline and measure duration
+            t0 = time.time()
+            processed = frame
             for effect in self.pipeline:
-                frame = effect.apply(frame, self.history)
-            # Store the processed frame (BGRA) for saving
-            self.last_processed_frame = frame.copy()
+                processed = effect.apply(processed, self.history)
+            duration = time.time() - t0
             
-            # Convert to RGB for display
-            display_frame = cv2.cvtColor(self.last_processed_frame, cv2.COLOR_BGRA2RGB)
-            
-            # Resize to fit preview
-            h, w = display_frame.shape[:2]
-            preview_width = 800
-            preview_height = int(h * preview_width / w)
-            display_frame = cv2.resize(display_frame, (preview_width, preview_height))
-            
-            # Convert to PhotoImage
-            from PIL import Image, ImageTk
-            img = Image.fromarray(display_frame)
-            imgtk = ImageTk.PhotoImage(image=img)
-            
-            self.preview_label.imgtk = imgtk
-            self.preview_label.configure(image=imgtk)
-            
-            # Calculate and display FPS in window title
+            # Calculate processing FPS
             now = time.time()
-            fps = 1.0 / max(now - self.last_frame_time, 0.001)
-            self.last_frame_time = now
-            self.root.title(f"Live Effects GUI - {fps:.1f} FPS")
+            proc_fps = 1.0 / max(now - last_process_time, 0.001)
+            last_process_time = now
             
-        except queue.Empty:
-            pass
+            # Store result thread-safely for the GUI to pick up
+            with self.display_lock:
+                self.last_processed_frame = processed
+                self.display_frame_new = True
+                self.processing_fps = proc_fps
+                self.last_process_duration = duration
+                self.last_frame_delivered = now
+    
+    def update_preview(self):
+        """GUI refresh loop: displays the latest processed frame at ~30fps.
+        Never blocks on processing -- just shows whatever is ready."""
+        if not self.running:
+            return
         
-        # Schedule next update
-        self.root.after(33, self.update_preview)  # ~30 fps
+        # Read shared state under lock
+        with self.display_lock:
+            new_frame = self.last_processed_frame if self.display_frame_new else None
+            if self.display_frame_new:
+                self.display_frame_new = False
+            proc_fps = self.processing_fps
+            expected_duration = self.last_process_duration
+            last_delivered = self.last_frame_delivered
+        
+        # Display new frame if available
+        if new_frame is not None:
+            try:
+                # Convert to RGB for display
+                display_frame = cv2.cvtColor(new_frame, cv2.COLOR_BGRA2RGB)
+                
+                # Resize to fit preview
+                h, w = display_frame.shape[:2]
+                preview_width = 800
+                preview_height = int(h * preview_width / w)
+                display_frame = cv2.resize(display_frame, (preview_width, preview_height))
+                
+                # Convert to PhotoImage
+                from PIL import Image, ImageTk
+                img = Image.fromarray(display_frame)
+                imgtk = ImageTk.PhotoImage(image=img)
+                
+                self.preview_label.imgtk = imgtk
+                self.preview_label.configure(image=imgtk)
+            except Exception as e:
+                print(f"Display error: {e}")
+        
+        # Update progress bar and title
+        if len(self.pipeline) > 0:
+            elapsed = time.time() - last_delivered
+            
+            if expected_duration > 0.2 and elapsed > 0.2:
+                # Slow processing: show progress bar filling up while waiting
+                pct = min(elapsed / expected_duration, 0.99) * 100
+                remaining = max(expected_duration - elapsed, 0)
+                
+                self.progress_bar['value'] = pct
+                self.progress_pct.config(text=f"{pct:.0f}%")
+                self.progress_label.config(
+                    text=f"Processing... ~{remaining:.1f}s remaining"
+                )
+            else:
+                # Fast processing: just show FPS
+                self.progress_bar['value'] = 100
+                self.progress_pct.config(text="")
+                self.progress_label.config(text=f"{proc_fps:.1f} FPS")
+            
+            self.root.title(f"Live Effects GUI - {proc_fps:.1f} FPS")
+        else:
+            # No effects in pipeline
+            self.progress_bar['value'] = 0
+            self.progress_pct.config(text="")
+            self.progress_label.config(text="No effects")
+            self.root.title("Live Effects GUI")
+        
+        # Always schedule next GUI refresh at ~30fps
+        self.root.after(33, self.update_preview)
     
     def export_code(self):
         """Export current pipeline as Python code"""
@@ -874,8 +959,11 @@ class EffectsGUI:
     def on_close(self):
         """Cleanup on close"""
         self.running = False
+        self.capture_running = False
+        if self.processing_thread and self.processing_thread.is_alive():
+            self.processing_thread.join(timeout=2)
         if self.capture_thread and self.capture_thread.is_alive():
-            self.capture_thread.join()
+            self.capture_thread.join(timeout=2)
         if self.cap:
             self.cap.release()
         self.root.destroy()
