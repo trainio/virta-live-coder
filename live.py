@@ -9,5 +9,10 @@ from src.graphics import *
 
 def processing(frame, gui=None, history=None):
     """Add your code here"""
-    frame = analyze.diagram_visualize(frame)
+    frame = process.grayscale(frame)
+    val = gui.get("History")
+    frame2 = draw.circle(frame,cx=val)
+
+    frame = blend.add(frame, frame2)
+    #frame = analyze.diagram_visualize(frame)
     return frame
