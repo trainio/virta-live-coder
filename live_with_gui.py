@@ -94,43 +94,51 @@ class Effect:
         return cloned
 
     def apply(self, frame, history=None):
-        """Apply effect to frame with current parameters"""
+        """Apply effect to frame with current parameters.
+        
+        For blend effects (those with frame2):
+          - frame = the processed frame from the pipeline
+          - frame2 = an unprocessed input frame from history, selected by _history_offset
+        """
         if not self.active:
             return frame
         
         try:
-            # Build kwargs from parameters (sliders)
-            kwargs = {p.name: p.value for p in self.params}
+            # Build kwargs from parameters, separating out the special _history_offset
+            kwargs = {}
+            history_offset = 0
+            for p in self.params:
+                if p.name == '_history_offset':
+                    history_offset = int(p.value)
+                else:
+                    kwargs[p.name] = p.value
             
-            # --- Smartly build arguments based on function signature ---
+            # Inspect function signature to determine call pattern
             sig = inspect.signature(self.function)
             param_names = list(sig.parameters.keys())
             
             args_to_pass = []
             
-            # 1. First argument is always the current frame
+            # First argument is always the current (processed) frame
             if len(param_names) > 0:
                 args_to_pass.append(frame)
                 
-            # 2. Check if it needs a 'frame2' and if history is available
-            # We specifically look for a parameter named 'frame2'
+            # For blend effects: pick unprocessed frame from history
             if 'frame2' in param_names and history and len(history) > 0:
-                
-                # Check if 'frame2' is the second parameter (index 1)
                 frame2_idx = param_names.index('frame2')
                 if frame2_idx == 1:
-                    oldest_frame = history[0]
+                    # Clamp offset to available history range
+                    # 0 = most recent (current input), higher = further back
+                    clamped = min(history_offset, len(history) - 1)
+                    frame2 = history[-(clamped + 1)]
                     
-                    # --- CRITICAL: Ensure frame dimensions match ---
+                    # Ensure frame dimensions match
                     h, w = frame.shape[:2]
-                    old_h, old_w = oldest_frame.shape[:2]
+                    fh, fw = frame2.shape[:2]
+                    if (h, w) != (fh, fw):
+                        frame2 = cv2.resize(frame2, (w, h), interpolation=cv2.INTER_AREA)
                     
-                    if (h, w) != (old_h, old_w):
-                        # Resize oldest frame to match current frame
-                        oldest_frame_resized = cv2.resize(oldest_frame, (w, h), interpolation=cv2.INTER_AREA)
-                        args_to_pass.append(oldest_frame_resized)
-                    else:
-                        args_to_pass.append(oldest_frame)
+                    args_to_pass.append(frame2)
 
             # Call the function with positional args and slider kwargs
             return self.function(*args_to_pass, **kwargs)
@@ -205,6 +213,16 @@ class EffectsGUI:
                         max_val=p.get('max')
                     )
                     params.append(param)
+                
+                # Auto-add history offset slider for blend effects (those with frame2)
+                try:
+                    sig = inspect.signature(func)
+                    if 'frame2' in sig.parameters:
+                        params.append(EffectParameter(
+                            '_history_offset', 0, 0, 99, int
+                        ))
+                except (ValueError, TypeError):
+                    pass
                 
                 effects.append(Effect(category, name, func, params))
         else:
@@ -749,17 +767,16 @@ class EffectsGUI:
             # Get frame from queue
             frame = self.frame_queue.get_nowait()
             
-            # Apply effects pipeline
+            # Store unprocessed input frame in history (for blend effects)
+            self.history.append(frame.copy())
+            if len(self.history) > self.max_history:
+                self.history.pop(0)
+            
+            # Apply effects pipeline (blends will reference unprocessed history)
             for effect in self.pipeline:
                 frame = effect.apply(frame, self.history)
             # Store the processed frame (BGRA) for saving
             self.last_processed_frame = frame.copy()
-            
-            # Update history
-            #self.history.append(self.last_processed_frame.copy())
-            self.history.append(frame)
-            if len(self.history) > self.max_history:
-                self.history.pop(0)
             
             # Convert to RGB for display
             display_frame = cv2.cvtColor(self.last_processed_frame, cv2.COLOR_BGRA2RGB)
