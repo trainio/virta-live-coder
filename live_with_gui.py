@@ -74,18 +74,28 @@ class EffectParameter:
 
 
 class Effect:
-    """Represents a single effect with its parameters"""
+    """Represents a single effect with its parameters.
+    Used both as a template (in the catalog) and as a pipeline instance (cloned)."""
     def __init__(self, category, name, function, params=None):
         self.category = category
         self.name = name
         self.function = function
-        self.enabled = False  # In pipeline or not
-        self.active = True    # Active when in pipeline (checkbox state)
+        self.active = True    # Active toggle (checkbox state in pipeline)
         self.params = params or []
 
-    def apply(self, frame, history=None): # <-- Note the new 'history=None' argument
+    def clone(self):
+        """Create an independent copy of this effect with its own parameters"""
+        new_params = [
+            EffectParameter(p.name, p.value, p.min_val, p.max_val, p.param_type)
+            for p in self.params
+        ]
+        cloned = Effect(self.category, self.name, self.function, new_params)
+        cloned.active = True
+        return cloned
+
+    def apply(self, frame, history=None):
         """Apply effect to frame with current parameters"""
-        if not self.enabled or not self.active:
+        if not self.active:
             return frame
         
         try:
@@ -130,20 +140,6 @@ class Effect:
             # On error, return the original frame to avoid crashing the pipeline
             return frame
 
-#     def apply(self, frame):
-#         """Apply effect to frame with current parameters"""
-#         if not self.enabled or not self.active:
-#             return frame
-        
-#         try:
-#             # Build kwargs from parameters
-#             kwargs = {p.name: p.value for p in self.params}
-#             return self.function(frame, **kwargs)
-#         except Exception as e:
-#             print(f"Error applying {self.name}: {e}")
-#             return frame
-
-
 class EffectsGUI:
     """Main GUI application"""
     
@@ -160,8 +156,9 @@ class EffectsGUI:
         self.frame_queue = queue.Queue(maxsize=2)
         self.running = True
         
-        # Effects pipeline
-        self.effects = self.build_effects_list()
+        # Effects catalog (templates) and active pipeline (cloned instances)
+        self.effect_templates = self.build_effects_list()
+        self.pipeline = []  # Independent effect instances
         self.history = []
         self.max_history = 100
         self.last_processed_frame = None
@@ -394,7 +391,7 @@ class EffectsGUI:
         self.build_pipeline_effects()
     
     def build_available_effects(self):
-        """Build list of available effects to add"""
+        """Build list of available effects to add (from templates)"""
         # Clear existing
         for widget in self.available_frame.winfo_children():
             widget.destroy()
@@ -402,16 +399,16 @@ class EffectsGUI:
         search_term = self.search_var.get().lower() if hasattr(self, 'search_var') else ''
         
         current_category = None
-        for effect in self.effects:
+        for template in self.effect_templates:
             # Filter by search
-            if search_term and search_term not in effect.name.lower():
+            if search_term and search_term not in template.name.lower():
                 continue
             
             # Category header
-            if effect.category != current_category:
-                current_category = effect.category
+            if template.category != current_category:
+                current_category = template.category
                 header = tk.Label(self.available_frame, 
-                                text=f"═══ {effect.category.upper()} ═══",
+                                text=f"═══ {template.category.upper()} ═══",
                                 font=("Arial", 10, "bold"),
                                 bg='#e0e0e0', fg='#333')
                 header.pack(fill=tk.X, pady=(5, 2))
@@ -422,20 +419,21 @@ class EffectsGUI:
             item_frame.pack(fill=tk.X, padx=5, pady=2)
             
             # Effect name
-            name_label = tk.Label(item_frame, text=effect.name, 
+            name_label = tk.Label(item_frame, text=template.name, 
                                  bg='white', fg='black', font=("Arial", 10),
                                  anchor=tk.W)
             name_label.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
             
-            # Add to pipeline button
-            def make_add_callback(eff):
+            # Add to pipeline button - clones the template each time
+            def make_add_callback(tmpl):
                 def add():
-                    eff.enabled = True
+                    clone = tmpl.clone()
+                    self.pipeline.append(clone)
                     self.build_pipeline_effects()
                 return add
             
             add_btn = tk.Button(item_frame, text="→", font=("Arial", 12, "bold"),
-                            command=make_add_callback(effect),
+                            command=make_add_callback(template),
                             bg='#4CAF50', fg='black', width=3,
                             relief=tk.RAISED, pady=0)
             add_btn.pack(side=tk.RIGHT, padx=2, pady=1)
@@ -445,15 +443,12 @@ class EffectsGUI:
         self.build_available_effects()
     
     def build_pipeline_effects(self):
-        """Build list of effects in active pipeline"""
-        # Clear existing
+        """Build list of effects in active pipeline from self.pipeline"""
+        # Clear existing widgets
         for widget in self.pipeline_frame.winfo_children():
             widget.destroy()
         
-        # Get enabled effects only
-        enabled_effects = [(i, eff) for i, eff in enumerate(self.effects) if eff.enabled]
-        
-        if not enabled_effects:
+        if not self.pipeline:
             # Show empty message
             empty_label = tk.Label(self.pipeline_frame, 
                                   text="No effects in pipeline\n\nAdd effects from the left →",
@@ -462,7 +457,7 @@ class EffectsGUI:
             empty_label.pack(fill=tk.BOTH, expand=True)
             return
         
-        for pipeline_idx, (global_idx, effect) in enumerate(enabled_effects):
+        for idx, effect in enumerate(self.pipeline):
             # Effect frame
             effect_frame = tk.Frame(self.pipeline_frame, bg='white', 
                                    relief=tk.RIDGE, bd=2)
@@ -472,12 +467,11 @@ class EffectsGUI:
             top_row = tk.Frame(effect_frame, bg='white')
             top_row.pack(fill=tk.X, padx=5, pady=5)
             
-            # Checkbox for enable/disable (keep in pipeline)
-            var = tk.BooleanVar(value=effect.active if hasattr(effect, 'active') else True)
+            # Checkbox for active/bypass toggle
+            var = tk.BooleanVar(value=effect.active)
             
             def make_toggle(eff, v):
                 def toggle():
-                    # Toggle active state but keep in pipeline
                     eff.active = v.get()
                 return toggle
             
@@ -496,93 +490,49 @@ class EffectsGUI:
             controls_frame = tk.Frame(top_row, bg='white')
             controls_frame.pack(side=tk.RIGHT)
             
-            # # Up button
-            # def make_move_up(idx):
-            #     def move_up():
-            #         if idx > 0:
-            #             self.effects[global_idx], self.effects[self.get_global_idx(enabled_effects, idx - 1)] = \
-            #                 self.effects[self.get_global_idx(enabled_effects, idx - 1)], self.effects[global_idx]
-            #             self.build_pipeline_effects()
-            #     return move_up
-            
-            # up_btn = tk.Button(controls_frame, text="▲", font=("Arial", 8),
-            #                  command=make_move_up(pipeline_idx),
-            #                  width=2, bg='#d0d0d0')
-            # up_btn.pack(side=tk.LEFT, padx=1)
-            # if pipeline_idx == 0:
-            #     up_btn.config(state=tk.DISABLED)
-            
-            # # Down button
-            # def make_move_down(idx):
-            #     def move_down():
-            #         if idx < len(enabled_effects) - 1:
-            #             self.effects[global_idx], self.effects[self.get_global_idx(enabled_effects, idx + 1)] = \
-            #                 self.effects[self.get_global_idx(enabled_effects, idx + 1)], self.effects[global_idx]
-            #             self.build_pipeline_effects()
-            #     return move_down
-            
-            # down_btn = tk.Button(controls_frame, text="▼", font=("Arial", 8),
-            #                    command=make_move_down(pipeline_idx),
-            #                    width=2, bg='#d0d0d0')
-            # Move up - pass global_idx and enabled_effects as parameters
-            def make_move_up(g_idx):
+            # Move up button - simple swap in self.pipeline
+            def make_move_up(i):
                 def move_up():
-                    # Remove from current position, insert one position earlier
-                    eff = self.effects.pop(g_idx)
-                    # Find the previous enabled effect's position
-                    prev_idx = g_idx - 1
-                    while prev_idx >= 0 and not self.effects[prev_idx].enabled:
-                        prev_idx -= 1
-                    if prev_idx >= 0:
-                        self.effects.insert(prev_idx, eff)
-                    else:
-                        self.effects.insert(0, eff)
+                    self.pipeline[i], self.pipeline[i - 1] = \
+                        self.pipeline[i - 1], self.pipeline[i]
                     self.build_pipeline_effects()
                 return move_up
 
             up_btn = tk.Button(controls_frame, text="▲", font=("Arial", 8),
-                            command=make_move_up(global_idx),
+                            command=make_move_up(idx),
                             width=2, bg='#d0d0d0')
             up_btn.pack(side=tk.LEFT, padx=1)
-            if pipeline_idx == 0:
+            if idx == 0:
                 up_btn.config(state=tk.DISABLED)
 
-            def make_move_down(g_idx):
+            # Move down button - simple swap in self.pipeline
+            def make_move_down(i):
                 def move_down():
-                    eff = self.effects.pop(g_idx)
-                    # Find the next enabled effect's position
-                    next_idx = g_idx
-                    while next_idx < len(self.effects) and not self.effects[next_idx].enabled:
-                        next_idx += 1
-                    if next_idx < len(self.effects):
-                        self.effects.insert(next_idx + 1, eff)
-                    else:
-                        self.effects.append(eff)
+                    self.pipeline[i], self.pipeline[i + 1] = \
+                        self.pipeline[i + 1], self.pipeline[i]
                     self.build_pipeline_effects()
                 return move_down
 
             down_btn = tk.Button(controls_frame, text="▼", font=("Arial", 8),
-                            command=make_move_down(global_idx),
-                            width=2, bg='#d0d0d0')            
-
+                            command=make_move_down(idx),
+                            width=2, bg='#d0d0d0')
             down_btn.pack(side=tk.LEFT, padx=1)
-            if pipeline_idx == len(enabled_effects) - 1:
+            if idx == len(self.pipeline) - 1:
                 down_btn.config(state=tk.DISABLED)
             
-            # Delete button
-            def make_delete(eff):
+            # Delete button - remove from pipeline
+            def make_delete(i):
                 def delete():
-                    eff.enabled = False
-                    eff.active = True  # Reset active state
+                    self.pipeline.pop(i)
                     self.build_pipeline_effects()
                 return delete
             
             del_btn = tk.Button(controls_frame, text="X", font=("Arial", 10, "bold"),
-                              command=make_delete(effect),
+                              command=make_delete(idx),
                               width=2, bg='#f44336', fg='white')
             del_btn.pack(side=tk.LEFT, padx=3)
             
-            # Parameters
+            # Parameters (each instance has its own)
             if effect.params:
                 params_container = tk.Frame(effect_frame, bg='#f9f9f9')
                 params_container.pack(fill=tk.X, padx=5, pady=(0, 5))
@@ -621,40 +571,24 @@ class EffectsGUI:
                         slider.set(param.value)
                         slider.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=5)
     
-    def get_global_idx(self, enabled_effects, pipeline_idx):
-        """Get global effect index from pipeline index"""
-        return enabled_effects[pipeline_idx][0]
-    
     def clear_pipeline(self):
         """Clear all effects from pipeline"""
-        for effect in self.effects:
-            effect.enabled = False
+        self.pipeline.clear()
         self.build_pipeline_effects()
     
     def add_random_effects(self):
-        """Add 5 random, currently disabled effects to the pipeline."""
+        """Add 5 random effects (cloned from templates) to the pipeline."""
+        # Pick up to 5 random templates to clone
+        num_to_add = min(5, len(self.effect_templates))
+        random_templates = random.sample(self.effect_templates, num_to_add)
         
-        # 1. Find effects that are not already enabled
-        available_to_add = [effect for effect in self.effects if not effect.enabled]
-        
-        if not available_to_add:
-            print("No more effects to add.")
-            return
-
-        # 2. Determine how many to add (up to 5)
-        num_to_add = min(5, len(available_to_add))
-        
-        # 3. Select a random sample
-        random_effects = random.sample(available_to_add, num_to_add)
-        
-        # 4. Enable them
         print(f"Adding {num_to_add} random effects:")
-        for effect in random_effects:
-            effect.enabled = True
-            effect.active = True  # Ensure it's active when added
-            print(f"  - {effect.name}")
+        for template in random_templates:
+            clone = template.clone()
+            self.pipeline.append(clone)
+            print(f"  - {clone.name}")
             
-        # 5. Rebuild the pipeline GUI
+        # Rebuild the pipeline GUI
         self.build_pipeline_effects()
     
     def rebuild_effects_widgets(self):
@@ -816,13 +750,8 @@ class EffectsGUI:
             frame = self.frame_queue.get_nowait()
             
             # Apply effects pipeline
-        #     for effect in self.effects:
-        #         if effect.enabled:
-        #             frame = effect.apply(frame)
-            # Apply effects pipeline
-            for effect in self.effects:
-                if effect.enabled:
-                        frame = effect.apply(frame, self.history)
+            for effect in self.pipeline:
+                frame = effect.apply(frame, self.history)
             # Store the processed frame (BGRA) for saving
             self.last_processed_frame = frame.copy()
             
@@ -874,9 +803,9 @@ class EffectsGUI:
         lines.append('def processing(frame, gui=None, history=None):')
         lines.append('    """Add your code here"""')
         
-        # Add enabled AND active effects
-        for effect in self.effects:
-            if effect.enabled and effect.active:
+        # Add pipeline effects (active ones as code, inactive as comments)
+        for effect in self.pipeline:
+            if effect.active:
                 # Build function call
                 params = []
                 for param in effect.params:
@@ -889,7 +818,7 @@ class EffectsGUI:
                     line = f"    frame = {effect.category}.{effect.name}(frame)"
                 
                 lines.append(line)
-            elif effect.enabled and not effect.active:
+            elif not effect.active:
                 # Add as comment if disabled
                 params = []
                 for param in effect.params:
