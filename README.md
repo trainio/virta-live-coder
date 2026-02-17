@@ -66,6 +66,28 @@ ui.py
 # Batch process files without live view
 python batch_process.py
 
+# Stream (using ZMQ)
+# Example app 1: camera -> effects -> publish on port 5555
+python live_with_gui.py --camera 0 --stream-out "tcp://*:5555"
+# Example app 2: subscribe from Example app 1 -> more effects -> publish on port 5556
+python live_with_gui.py --stream-in "tcp://localhost:5555" --stream-out "tcp://*:5556"
+# Example app 3: subscribe from Example app 2 -> final effects -> preview only
+python live_with_gui.py --stream-in "tcp://localhost:5556"
+
+######################################################################
+LIVE CODING (using python run.py)
+
+# Edit live.py to process image
+
+# Use lib functions (example):
+frame = process.grayscale(frame)
+
+# Edit ui.py for GUI
+
+# Get GUI values:
+val = gui.get("Name_of_value")
+
+
 # App key bindings
 q = quit
 r = save frame and script
